@@ -99,28 +99,28 @@ def process_audio_folder(folder_path, label=None): # перебор аудифо
 
 
 # перевод в DataFrame
-df_training_real = process_audio_folder('D:/for-original/for-original/training/real', label=0)
-df_training_fake = process_audio_folder('D:/for-original/for-original/training/fake', label=1)
+df_training_real = process_audio_folder('D:/for-rerec/for-rerecorded/training/real', label=0)
+df_training_fake = process_audio_folder('D:/for-rerec/for-rerecorded/training/fake', label=1)
 
 df_training = pd.concat([df_training_real, df_training_fake], ignore_index=True)
 
 
-df_testing_real = process_audio_folder('D:/for-original/for-original/testing/real', label=0)
-df_testing_fake = process_audio_folder('D:/for-original/for-original/testing/fake', label=1)
+df_testing_real = process_audio_folder('D:/for-rerec/for-rerecorded/testing/real', label=0)
+df_testing_fake = process_audio_folder('D:/for-rerec/for-rerecorded/testing/fake', label=1)
 
 df_testing = pd.concat([df_testing_real, df_testing_fake], ignore_index=True)
 
 
-df_validation_real = process_audio_folder('D:/for-original/for-original/validation/real', label=0)
-df_validation_fake = process_audio_folder('D:/for-original/for-original/validation/fake', label=1)
+df_validation_real = process_audio_folder('D:/for-rerec/for-rerecorded/validation/real', label=0)
+df_validation_fake = process_audio_folder('D:/for-rerec/for-rerecorded/validation/fake', label=1)
 
 df_validation = pd.concat([df_validation_real, df_validation_fake], ignore_index=True)
 
 # Вывод csv
-df_training.to_csv('training.csv')
+df_training.to_csv('data/for-rerec_training.csv')
 
-df_testing.to_csv('testing.csv')
+df_testing.to_csv('data/for-rerec_testing.csv')
 
-df_validation.to_csv('validation.csv')
+df_validation.to_csv('data/for-rerec_validation.csv')
 
 
