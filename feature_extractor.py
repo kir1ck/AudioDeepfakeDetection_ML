@@ -3,10 +3,11 @@ import librosa
 import pandas as pd
 import numpy as np
 import scipy.stats
+import scipy.fftpack as fftpack
 
-def get_stats(name, values, features):
-    """Вспомогательная функция для сбора расширенной статистики."""
-    # Убеждаемся, что работаем с одномерным массивом
+def get_stats(name, values, features): # извлечение статистических показателей
+    
+    
     v = values.flatten()
     features[f'{name}_mean'] = np.mean(v)
     features[f'{name}_std'] = np.std(v)
@@ -16,7 +17,7 @@ def get_stats(name, values, features):
 def extract_features(file_path): # извлечение признаков из аудиофайла
 
     try:
-        y, sr = librosa.load(file_path, sr=44100, mono=True)
+        y, sr = librosa.load(file_path, sr=None, mono=True)
 
         # duration, rms, zcr
         duration = librosa.get_duration(y=y, sr=sr)
@@ -31,9 +32,14 @@ def extract_features(file_path): # извлечение признаков из 
 
 
         # MFCC
-        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
         mfcc_delta = librosa.feature.delta(mfcc)
         mfcc_delta2 = librosa.feature.delta(mfcc, order=2)
+
+        S = np.abs(librosa.stft(y))
+        lfcc = fftpack.dct(S, axis=0, type=2, norm='ortho')[:20]
+        lfcc_delta = librosa.feature.delta(lfcc)
+        lfcc_delta2 = librosa.feature.delta(lfcc, order=2)
 
         features = {}
 
@@ -43,10 +49,15 @@ def extract_features(file_path): # извлечение признаков из 
         get_stats('spec_rolloff', spec_rolloff, features)
         get_stats('spec_flatness', spec_flatness, features)
 
-        for i in range(13):
+        for i in range(20):
             get_stats(f'mfcc_{i}', mfcc[i], features)
             get_stats(f'mfcc_delta_{i}', mfcc_delta[i], features)
             get_stats(f'mfcc_delta2_{i}', mfcc_delta2[i], features)
+        
+        for i in range(20):
+            get_stats(f'lfcc_{i}', lfcc[i], features)
+            get_stats(f'lfcc_delta_{i}', lfcc_delta[i], features)
+            get_stats(f'lfcc_delta2_{i}', lfcc_delta2[i], features)
             
         # Статистика для Spectral Contrast
         for i, block in enumerate(spec_contrast):
@@ -87,28 +98,28 @@ def process_audio_folder(folder_path, label=None): # перебор аудифо
 
 
 # перевод в DataFrame
-df_training_real = process_audio_folder('D:/for-2sec/for-2seconds/training/real', label=0)
-df_training_fake = process_audio_folder('D:/for-2sec/for-2seconds/training/fake', label=1)
+df_training_real = process_audio_folder('D:/for-rerecorded/for-rerecorded/training/real', label=0)
+df_training_fake = process_audio_folder('D:/for-rerecorded/for-rerecorded/training/fake', label=1)
 
 df_training = pd.concat([df_training_real, df_training_fake], ignore_index=True)
 
 
-df_testing_real = process_audio_folder('D:/for-2sec/for-2seconds/testing/real', label=0)
-df_testing_fake = process_audio_folder('D:/for-2sec/for-2seconds/testing/fake', label=1)
+df_testing_real = process_audio_folder('D:/for-rerecorded/for-rerecorded/testing/real', label=0)
+df_testing_fake = process_audio_folder('D:/for-rerecorded/for-rerecorded/testing/fake', label=1)
 
 df_testing = pd.concat([df_testing_real, df_testing_fake], ignore_index=True)
 
 
-df_validation_real = process_audio_folder('D:/for-2sec/for-2seconds/validation/real', label=0)
-df_validation_fake = process_audio_folder('D:/for-2sec/for-2seconds/validation/fake', label=1)
+df_validation_real = process_audio_folder('D:/for-rerecorded/for-rerecorded/validation/real', label=0)
+df_validation_fake = process_audio_folder('D:/for-rerecorded/for-rerecorded/validation/fake', label=1)
 
 df_validation = pd.concat([df_validation_real, df_validation_fake], ignore_index=True)
 
 # Вывод csv
-df_training.to_csv('data2/for-2sec_train.csv')
+df_training.to_csv('data2/for-rerec_train.csv')
 
-df_testing.to_csv('data2/for-2sec_test.csv')
+df_testing.to_csv('data2/for-rerec_test.csv')
 
-df_validation.to_csv('data2/for-2sec_validation.csv')
+df_validation.to_csv('data2/for-rerec_validation.csv')
 
 
