@@ -17,6 +17,7 @@ from scipy import optimize
 from scipy.interpolate import interp1d
 from feature_extractor import process_dataset_paths
 import os
+import threading
 
 # Feature groups
 FEATURE_GROUPS = {
@@ -76,6 +77,11 @@ class MLResearchApp:
         self.extracted_csv_testing = None
         # Results storage for saving
         self.results_data = None
+        # Timing variables
+        self.extraction_time = None
+        self.optimization_time = None
+        self.training_time = None
+        self.feature_set_name = None
         # Feature extraction parameters
         self.n_mfcc = tk.StringVar(value='20')
         self.n_lfcc = tk.StringVar(value='20')
@@ -229,30 +235,63 @@ class MLResearchApp:
 
         self.reset_progress()
         self.set_status("Extracting features...")
-        try:
-            output_paths = process_dataset_paths(
-                training_path,
-                validation_path,
-                testing_path,
-                feature_groups=selected_groups,
-                n_mfcc=n_mfcc,
-                n_lfcc=n_lfcc,
-                stats_list=stats_list,
-                progress_callback=self.on_extract_progress
-            )
+        
+        # Disable button during extraction
+        for child in self.scrollable_frame.winfo_children():
+            if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
+                child.config(state='disabled')
+        
+        # Run extraction in separate thread
+        def extraction_worker():
+            try:
+                start_time = time.time()
+                output_paths = process_dataset_paths(
+                    training_path,
+                    validation_path,
+                    testing_path,
+                    feature_groups=selected_groups,
+                    n_mfcc=n_mfcc,
+                    n_lfcc=n_lfcc,
+                    stats_list=stats_list,
+                    progress_callback=self.on_extract_progress
+                )
+                self.extraction_time = time.time() - start_time
+                
+                # Update GUI in main thread
+                self.root.after(0, self._extraction_complete, output_paths)
+            except Exception as e:
+                self.root.after(0, self._extraction_error, str(e))
+        
+        thread = threading.Thread(target=extraction_worker, daemon=True)
+        thread.start()
+    
+    def _extraction_complete(self, output_paths):
+        # Re-enable button
+        for child in self.scrollable_frame.winfo_children():
+            if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
+                child.config(state='normal')
+        
+        self.extracted_csv_training = output_paths.get('training')
+        self.extracted_csv_validation = output_paths.get('validation')
+        self.extracted_csv_testing = output_paths.get('testing')
+        self.feature_set_name = output_paths.get('feature_set_name')
+        self.extraction_result_dir = output_paths.get('extraction_result_dir')
 
-            self.extracted_csv_training = output_paths.get('training')
-            self.extracted_csv_validation = output_paths.get('validation')
-            self.extracted_csv_testing = output_paths.get('testing')
+        if not all([self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]):
+            messagebox.showerror("Error", 'Feature extraction did not produce all split CSV files')
+            return
 
-            if not all([self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]):
-                raise ValueError('Feature extraction did not produce all split CSV files')
-
-            self.set_progress(100, "Extraction complete")
-            messagebox.showinfo("Success", f"Features extracted and saved to:\n- {self.extracted_csv_training}\n- {self.extracted_csv_validation}\n- {self.extracted_csv_testing}")
-        except Exception as e:
-            self.set_status("Extraction failed")
-            messagebox.showerror("Error", str(e))
+        self.set_progress(100, "Extraction complete")
+        messagebox.showinfo("Success", f"Features extracted and saved to:\n- {self.extracted_csv_training}\n- {self.extracted_csv_validation}\n- {self.extracted_csv_testing}\n\nExtraction time: {self.extraction_time:.2f}s\nFeature set: {self.feature_set_name}")
+    
+    def _extraction_error(self, error_msg):
+        # Re-enable button
+        for child in self.scrollable_frame.winfo_children():
+            if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
+                child.config(state='normal')
+        
+        self.set_status("Extraction failed")
+        messagebox.showerror("Error", error_msg)
 
     def update_hyper_entries(self, event=None):
         for widget in self.hyper_frame.winfo_children():
@@ -279,6 +318,18 @@ class MLResearchApp:
             row += 1
 
     def load_data(self):
+        # First try to use extraction_result folder if available
+        if hasattr(self, 'extraction_result_dir') and self.extraction_result_dir and os.path.exists(self.extraction_result_dir):
+            extraction_csv_training = os.path.join(self.extraction_result_dir, 'training.csv')
+            extraction_csv_validation = os.path.join(self.extraction_result_dir, 'validation.csv')
+            extraction_csv_testing = os.path.join(self.extraction_result_dir, 'testing.csv')
+            
+            if all(os.path.exists(p) for p in [extraction_csv_training, extraction_csv_validation, extraction_csv_testing]):
+                self.extracted_csv_training = extraction_csv_training
+                self.extracted_csv_validation = extraction_csv_validation
+                self.extracted_csv_testing = extraction_csv_testing
+                self.set_status(f"Using extracted features from {self.extraction_result_dir}")
+        
         paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
         missing = [p for p in paths if not p or not os.path.exists(p)]
         if missing:
@@ -438,13 +489,15 @@ class MLResearchApp:
             index = trial.number + 1
             self.set_progress(index / trials * 100, f"Optimization trial {index} / {trials}")
 
+        opt_start_time = time.time()
         study.optimize(objective, n_trials=trials, callbacks=[optuna_progress_callback])
+        self.optimization_time = time.time() - opt_start_time
 
         self.best_params = study.best_params
         self.best_threshold = study.best_trial.user_attrs.get("eer_threshold", 0.5)
         self.set_progress(100, "Optimization complete")
 
-        messagebox.showinfo("Optimization Complete", f"Best params: {self.best_params}")
+        messagebox.showinfo("Optimization Complete", f"Best params: {self.best_params}\n\nOptimization time: {self.optimization_time:.2f}s")
 
         # Proceed to final evaluation on test set
         self.run_evaluation()
@@ -557,7 +610,8 @@ class MLResearchApp:
         elif model == 'KNN':
             self.clf = KNeighborsClassifier(**self.best_params)
         self.clf.fit(X_eval, y_train_valid)
-        training_time = time.time() - start_time
+        self.training_time = time.time() - start_time
+        training_time = self.training_time
         self.progress_bar.stop()
         self.progress_bar.config(mode='determinate')
         self.set_status("Model trained")
@@ -607,8 +661,13 @@ class MLResearchApp:
         else:
             importances = None
 
-        # Display results
-        results = f"Training Time: {training_time:.2f}s\nPrediction Time: {prediction_time:.2f}s\n\n"
+        # Display results with all timing information
+        results = f"=== Timing Information ===\n"
+        # results += f"Feature Extraction Time: {self.extraction_time:.2f}s\n"
+        results += f"Hyperparameter Optimization Time: {self.optimization_time:.2f}s\n"
+        results += f"Model Training Time: {training_time:.2f}s\n"
+        results += f"Prediction Time: {prediction_time:.2f}s\n\n"
+        results += f"=== Metrics ===\n"
         results += f"Accuracy: {acc:.3f}\nPrecision: {prec:.3f}\nRecall: {rec:.3f}\nF1-Score: {f1:.3f}\n\n"
         results += f"Confusion Matrix:\n"
         results += f"{'':<10} {'Actual Real':<12} {'Actual Fake':<12}\n"
@@ -631,9 +690,14 @@ class MLResearchApp:
             'f1': f1,
             'training_time': training_time,
             'prediction_time': prediction_time,
+            'extraction_time': self.extraction_time,
+            'optimization_time': self.optimization_time,
+            'feature_set_name': self.feature_set_name,
             'cm': cm,
             'importances': importances,
-            'feature_names': feature_names if importances is not None else None
+            'feature_names': feature_names if importances is not None else None,
+            'best_params': self.best_params,
+            'model': model
         }
 
     def plot_threshold_metrics(self, y_true, y_proba):
@@ -669,7 +733,7 @@ class MLResearchApp:
         canvas.draw()
         canvas.get_tk_widget().pack()
 
-    def save_to_xlsx(self, acc, prec, rec, f1, train_time, pred_time, cm, importances, feature_names):
+    def save_to_xlsx(self, data):
         file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
         if not file_path:
             return
@@ -678,35 +742,55 @@ class MLResearchApp:
         ws = wb.active
         ws.title = "Results"
 
+        # Feature Set Info
+        ws['A1'] = 'Feature Set Name'
+        ws['B1'] = data.get('feature_set_name', 'N/A')
+        ws['A2'] = 'Model'
+        ws['B2'] = data.get('model', 'N/A')
+        ws['A3'] = 'Best Parameters'
+        ws['B3'] = str(data.get('best_params', {}))
+
+        # Timing Information
+        ws['A5'] = 'Timing Information'
+        ws['B5'] = 'Time (s)'
+        # ws['A6'] = 'Feature Extraction Time'
+        ws['B6'] = data.get('extraction_time', 0)
+        ws['A7'] = 'Hyperparameter Optimization Time'
+        ws['B7'] = data.get('optimization_time', 0)
+        ws['A8'] = 'Model Training Time'
+        ws['B8'] = data.get('training_time', 0)
+        ws['A9'] = 'Prediction Time'
+        ws['B9'] = data.get('prediction_time', 0)
+
         # Metrics
-        ws['A1'] = 'Metric'
-        ws['B1'] = 'Value'
-        ws['A2'] = 'Accuracy'
-        ws['B2'] = acc
-        ws['A3'] = 'Precision'
-        ws['B3'] = prec
-        ws['A4'] = 'Recall'
-        ws['B4'] = rec
-        ws['A5'] = 'F1-Score'
-        ws['B5'] = f1
-        ws['A6'] = 'Training Time (s)'
-        ws['B6'] = train_time
-        ws['A7'] = 'Prediction Time (s)'
-        ws['B7'] = pred_time
+        ws['A11'] = 'Metric'
+        ws['B11'] = 'Value'
+        ws['A12'] = 'Accuracy'
+        ws['B12'] = data.get('acc', 0)
+        ws['A13'] = 'Precision'
+        ws['B13'] = data.get('prec', 0)
+        ws['A14'] = 'Recall'
+        ws['B14'] = data.get('rec', 0)
+        ws['A15'] = 'F1-Score'
+        ws['B15'] = data.get('f1', 0)
 
         # Confusion Matrix
-        ws['D1'] = 'Confusion Matrix'
-        for i in range(cm.shape[0]):
-            for j in range(cm.shape[1]):
-                ws.cell(row=i+2, column=j+4, value=cm[i,j])
+        ws['D11'] = 'Confusion Matrix'
+        cm = data.get('cm')
+        if cm is not None:
+            for i in range(cm.shape[0]):
+                for j in range(cm.shape[1]):
+                    ws.cell(row=i+12, column=j+4, value=cm[i,j])
 
         # Feature Importances
-        if importances is not None:
-            ws['A10'] = 'Feature'
-            ws['B10'] = 'Importance'
+        importances = data.get('importances')
+        feature_names = data.get('feature_names')
+        if importances is not None and feature_names is not None:
+            ws['A18'] = 'Feature'
+            ws['B18'] = 'Importance'
             for i, (name, imp) in enumerate(zip(feature_names, importances)):
-                ws.cell(row=i+11, column=1, value=name)
-                ws.cell(row=i+11, column=2, value=imp)
+                ws.cell(row=i+19, column=1, value=name)
+                ws.cell(row=i+19, column=2, value=imp)
 
         wb.save(file_path)
         messagebox.showinfo("Saved", f"Results saved to {file_path}")
@@ -715,12 +799,7 @@ class MLResearchApp:
         if self.results_data is None:
             messagebox.showerror("Error", "Run final evaluation first to generate results")
             return
-        data = self.results_data
-        self.save_to_xlsx(
-            data['acc'], data['prec'], data['rec'], data['f1'],
-            data['training_time'], data['prediction_time'],
-            data['cm'], data['importances'], data['feature_names']
-        )
+        self.save_to_xlsx(self.results_data)
 
 if __name__ == "__main__":
     root = tk.Tk()

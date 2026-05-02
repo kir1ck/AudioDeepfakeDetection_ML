@@ -190,6 +190,9 @@ def process_dataset(dataset_root, feature_groups=None):
 
 def process_dataset_paths(training_folder, validation_folder, testing_folder, feature_groups=None, n_mfcc=20, n_lfcc=20, stats_list=None, output_dir=None, progress_callback=None):
     """Process explicit split folders and save training/validation/testing CSVs."""
+    import time
+    extraction_start_time = time.time()
+    
     if output_dir is None:
         try:
             common_parent = os.path.commonpath([training_folder, validation_folder, testing_folder])
@@ -199,6 +202,11 @@ def process_dataset_paths(training_folder, validation_folder, testing_folder, fe
                 output_dir = os.path.dirname(training_folder)
         except ValueError:
             output_dir = os.path.dirname(training_folder)
+    
+    # Create extraction_result folder with feature set name
+    feature_set_name = '_'.join(sorted(feature_groups)) if feature_groups else 'features'
+    extraction_result_dir = os.path.join(output_dir, 'extraction_result', feature_set_name)
+    os.makedirs(extraction_result_dir, exist_ok=True)
 
     splits = {
         'training': training_folder,
@@ -240,14 +248,19 @@ def process_dataset_paths(training_folder, validation_folder, testing_folder, fe
             print(f"Warning: No features extracted for {split}")
             continue
 
-        output_path = os.path.join(output_dir, f'{split}.csv')
+        output_path = os.path.join(extraction_result_dir, f'{split}.csv')
         df.to_csv(output_path, index=False)
         output_paths[split] = output_path
 
-        print(f"Saved {split}.csv with {len(df)} samples")
+        print(f"Saved {split}.csv with {len(df)} samples to {extraction_result_dir}")
         print(f"  - Real (label=0): {len(df[df['label']==0])} samples")
         print(f"  - Fake (label=1): {len(df[df['label']==1])} samples")
-
+    
+    extraction_time = time.time() - extraction_start_time
+    output_paths['extraction_time'] = extraction_time
+    output_paths['feature_set_name'] = feature_set_name
+    output_paths['extraction_result_dir'] = extraction_result_dir
+    
     return output_paths
 
 
