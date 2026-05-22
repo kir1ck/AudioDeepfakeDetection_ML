@@ -87,9 +87,9 @@ def extract_features(file_path, feature_groups=None, n_mfcc=20, n_lfcc=20, stats
             for i, block in enumerate(spec_contrast):
                 get_stats(f'contrast_{i}', block, features, stats_list)
 
-        # Технические поля
-        features['duration'] = duration
-        features['filename'] = os.path.basename(file_path)
+        
+        features['duration'] = duration # длительность
+        features['filename'] = os.path.basename(file_path) # наименование файла
 
         return features
     
@@ -101,10 +101,10 @@ def extract_features(file_path, feature_groups=None, n_mfcc=20, n_lfcc=20, stats
 def process_audio_folder(folder_path, feature_groups=None, n_mfcc=20, n_lfcc=20, stats_list=None, progress_callback=None, total_files=None, processed=0): # перебор аудифоайлов по указанному пути и извлечение признаков
     """Process files in a folder with 'real' and 'fake' subfolders."""
     all_features = []
-    # Check if folder has subfolders for labels
+    # проверка на наличие директорий fake/real
     subfolders = [d for d in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, d))]
     if subfolders:
-        # Assume subfolders are 'real' (0) and 'fake' (1)
+        
         for subfolder in subfolders:
             sub_path = os.path.join(folder_path, subfolder)
             if 'real' in subfolder.lower():
@@ -112,8 +112,8 @@ def process_audio_folder(folder_path, feature_groups=None, n_mfcc=20, n_lfcc=20,
             elif 'fake' in subfolder.lower():
                 label = 1
             else:
-                continue  # Skip unknown subfolders
-            # Process files in subfolder
+                continue  # пропуск несоответствующей директории
+            # перебор файлов в директории fake/real
             file_list = [f for f in os.listdir(sub_path) if f.endswith(('.wav', '.mp3', '.flac', '.m4a'))]
             for file_name in file_list:
                 file_path = os.path.join(sub_path, file_name)
@@ -126,7 +126,7 @@ def process_audio_folder(folder_path, feature_groups=None, n_mfcc=20, n_lfcc=20,
                 if progress_callback is not None and total_files:
                     progress_callback(processed / total_files * 100, f"Processed {processed} / {total_files} files")
     else:
-        # No subfolders, process all files with default label or something, but since we assume structure, perhaps error
+        # ошибка, если необходимые директории не обнаружены
         raise ValueError("Dataset folder must contain subfolders for different classes (e.g., 'real' and 'fake')")
 
     return pd.DataFrame(all_features), processed
@@ -203,7 +203,7 @@ def process_dataset_paths(training_folder, validation_folder, testing_folder, fe
         except ValueError:
             output_dir = os.path.dirname(training_folder)
     
-    # Create extraction_result folder with feature set name
+    # создание директории с наименованиями извлекаемых признаков
     feature_set_name = '_'.join(sorted(feature_groups)) if feature_groups else 'features'
     extraction_result_dir = os.path.join(output_dir, 'extraction_result', feature_set_name)
     os.makedirs(extraction_result_dir, exist_ok=True)
@@ -215,7 +215,7 @@ def process_dataset_paths(training_folder, validation_folder, testing_folder, fe
     }
     output_paths = {}
 
-    # Count total files for progress
+    # расчет прогресса обработки файлов
     file_exts = ('.wav', '.mp3', '.flac', '.m4a')
     total_files = 0
     for split_path in splits.values():

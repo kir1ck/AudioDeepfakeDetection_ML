@@ -19,7 +19,7 @@ from feature_extractor import process_dataset_paths
 import os
 import threading
 
-# Feature groups
+# признаки
 FEATURE_GROUPS = {
     'RMS': 'rms',
     'ZCR': 'zcr',
@@ -55,13 +55,17 @@ class MLResearchApp:
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Bind mousewheel to canvas
+        # скроллинг окна
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
         # Variables
         self.training_path = tk.StringVar()
         self.validation_path = tk.StringVar()
         self.testing_path = tk.StringVar()
+        # переменные для csv-файлов результатов извлечения признаков
+        self.custom_train_csv = tk.StringVar()
+        self.custom_valid_csv = tk.StringVar()
+        self.custom_test_csv = tk.StringVar()
         self.selected_features = {}
         self.selected_model = tk.StringVar(value='Random Forest')
         self.hyper_ranges = {}
@@ -75,14 +79,14 @@ class MLResearchApp:
         self.extracted_csv_training = None
         self.extracted_csv_validation = None
         self.extracted_csv_testing = None
-        # Results storage for saving
+        # переменная директории сохранения результатов
         self.results_data = None
-        # Timing variables
+        # переменные времезатрат
         self.extraction_time = None
         self.optimization_time = None
         self.training_time = None
         self.feature_set_name = None
-        # Feature extraction parameters
+        # параметры извлечения признаков
         self.n_mfcc = tk.StringVar(value='20')
         self.n_lfcc = tk.StringVar(value='20')
         self.selected_stats = {}
@@ -93,7 +97,7 @@ class MLResearchApp:
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
     def create_widgets(self):
-        # Dataset extraction section
+        # модуль извлечения признаков
         ttk.Label(self.scrollable_frame, text="Dataset Extraction", font=('Arial', 12, 'bold')).grid(row=0, column=0, columnspan=2, pady=10)
 
         ttk.Label(self.scrollable_frame, text="Training Folder Path:").grid(row=1, column=0, sticky='w', padx=10, pady=5)
@@ -122,14 +126,14 @@ class MLResearchApp:
             self.selected_features[group] = var
             ttk.Checkbutton(feature_frame, text=group, variable=var).grid(row=i//4, column=i%4, sticky='w')
 
-        # MFCC and LFCC coefficient counts
+        # количество коэффициентов MFCС/LFCC 
         ttk.Label(self.scrollable_frame, text="MFCC Coefficients:").grid(row=6, column=0, sticky='w', padx=10, pady=5)
         ttk.Entry(self.scrollable_frame, textvariable=self.n_mfcc, width=10).grid(row=6, column=1, sticky='w', padx=10, pady=5)
         
         ttk.Label(self.scrollable_frame, text="LFCC Coefficients:").grid(row=7, column=0, sticky='w', padx=10, pady=5)
         ttk.Entry(self.scrollable_frame, textvariable=self.n_lfcc, width=10).grid(row=7, column=1, sticky='w', padx=10, pady=5)
 
-        # Statistics selection
+        # выбор статистических агрегатов
         ttk.Label(self.scrollable_frame, text="Select Statistics:").grid(row=8, column=0, sticky='w', padx=10, pady=5)
         stats_frame = ttk.Frame(self.scrollable_frame)
         stats_frame.grid(row=8, column=1, sticky='w', padx=10, pady=5)
@@ -142,64 +146,89 @@ class MLResearchApp:
 
         ttk.Button(self.scrollable_frame, text="Extract Features and Save CSV", command=self.extract_features).grid(row=9, column=0, columnspan=2, pady=10)
 
-        # Separator
+        # разделитель блоков
         ttk.Separator(self.scrollable_frame, orient='horizontal').grid(row=10, column=0, columnspan=2, sticky='ew', pady=10)
 
-        # Model and hyperparams
-        ttk.Label(self.scrollable_frame, text="Model Training", font=('Arial', 12, 'bold')).grid(row=11, column=0, columnspan=2, pady=10)
+        ttk.Label(self.scrollable_frame, text="Load Custom Feature CSVs (Overrides Extraction)", font=('Arial', 12, 'bold')).grid(row=11, column=0, columnspan=2, pady=10)
 
-        ttk.Label(self.scrollable_frame, text="Select Model:").grid(row=12, column=0, sticky='w', padx=10, pady=5)
+        # поле ввода полного пути до CSV-файлов извлечения результатов набора Training
+        ttk.Label(self.scrollable_frame, text="Custom Training CSV:").grid(row=12, column=0, sticky='w', padx=10, pady=5)
+        ctrain_frame = ttk.Frame(self.scrollable_frame)
+        ctrain_frame.grid(row=12, column=1, padx=10, pady=5)
+        ttk.Entry(ctrain_frame, textvariable=self.custom_train_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(ctrain_frame, text="Browse", command=lambda: self.browse_file(self.custom_train_csv)).pack(side=tk.LEFT, padx=5)
+
+        # поле ввода полного пути до CSV-файлов извлечения результатов набора Validation
+        ttk.Label(self.scrollable_frame, text="Custom Validation CSV:").grid(row=13, column=0, sticky='w', padx=10, pady=5)
+        cvalid_frame = ttk.Frame(self.scrollable_frame)
+        cvalid_frame.grid(row=13, column=1, padx=10, pady=5)
+        ttk.Entry(cvalid_frame, textvariable=self.custom_valid_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(cvalid_frame, text="Browse", command=lambda: self.browse_file(self.custom_valid_csv)).pack(side=tk.LEFT, padx=5)
+
+        # поле ввода полного пути до CSV-файлов извлечения результатов набора Testing
+        ttk.Label(self.scrollable_frame, text="Custom Testing CSV:").grid(row=14, column=0, sticky='w', padx=10, pady=5)
+        ctest_frame = ttk.Frame(self.scrollable_frame)
+        ctest_frame.grid(row=14, column=1, padx=10, pady=5)
+        ttk.Entry(ctest_frame, textvariable=self.custom_test_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(ctest_frame, text="Browse", command=lambda: self.browse_file(self.custom_test_csv)).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Separator(self.scrollable_frame, orient='horizontal').grid(row=15, column=0, columnspan=2, sticky='ew', pady=10)
+
+        # модели и гиперпараметры
+        ttk.Label(self.scrollable_frame, text="Model Training", font=('Arial', 12, 'bold')).grid(row=16, column=0, columnspan=2, pady=10)
+
+        ttk.Label(self.scrollable_frame, text="Select Model:").grid(row=17, column=0, sticky='w', padx=10, pady=5)
         model_combo = ttk.Combobox(self.scrollable_frame, textvariable=self.selected_model, values=MODELS)
-        model_combo.grid(row=12, column=1, padx=10, pady=5)
+        model_combo.grid(row=17, column=1, padx=10, pady=5)
         model_combo.bind("<<ComboboxSelected>>", self.update_hyper_entries)
 
-        # Hyperparameter ranges frame
+        # диапазон перебора гиперпараметров
         self.hyper_frame = ttk.Frame(self.scrollable_frame)
-        self.hyper_frame.grid(row=13, column=0, columnspan=2, padx=10, pady=5)
+        self.hyper_frame.grid(row=18, column=0, columnspan=2, padx=10, pady=5)
         self.update_hyper_entries()
 
-        ttk.Label(self.scrollable_frame, text="Optuna Trials:").grid(row=14, column=0, sticky='w', padx=10, pady=5)
-        ttk.Entry(self.scrollable_frame, textvariable=self.num_trials, width=12).grid(row=14, column=1, padx=10, pady=5)
+        ttk.Label(self.scrollable_frame, text="Optuna Trials:").grid(row=19, column=0, sticky='w', padx=10, pady=5)
+        ttk.Entry(self.scrollable_frame, textvariable=self.num_trials, width=12).grid(row=19, column=1, padx=10, pady=5)
 
-        # Buttons
-        ttk.Button(self.scrollable_frame, text="Run Hyperparameter Optimization", command=self.run_optimization).grid(row=15, column=0, columnspan=2, pady=10)
+        # кнопка запуска оптимизации гиперпараметров
+        ttk.Button(self.scrollable_frame, text="Run Hyperparameter Optimization", command=self.run_optimization).grid(row=20, column=0, columnspan=2, pady=10)
 
-        # Progress section
+        # линия прогресса
         self.progress_bar = ttk.Progressbar(self.scrollable_frame, maximum=100, variable=self.progress_var, length=600)
-        self.progress_bar.grid(row=16, column=0, columnspan=2, padx=10, pady=5)
-        ttk.Label(self.scrollable_frame, textvariable=self.status_text).grid(row=17, column=0, columnspan=2, sticky='w', padx=10, pady=2)
+        self.progress_bar.grid(row=21, column=0, columnspan=2, padx=10, pady=5)
+        ttk.Label(self.scrollable_frame, textvariable=self.status_text).grid(row=22, column=0, columnspan=2, sticky='w', padx=10, pady=2)
 
-        # Plot frame for threshold selection
+        # блок графика зависимости метрик от порогов вероятности
         self.plot_frame = ttk.Frame(self.scrollable_frame)
-        self.plot_frame.grid(row=18, column=0, columnspan=2, padx=10, pady=10)
+        self.plot_frame.grid(row=24, column=0, columnspan=2, padx=10, pady=10)
 
-        # Threshold input
-        ttk.Label(self.scrollable_frame, text="Selected Threshold:").grid(row=19, column=0, sticky='w', padx=10, pady=5)
+        # поле ввода порога вероятности
+        ttk.Label(self.scrollable_frame, text="Selected Threshold:").grid(row=23, column=0, sticky='w', padx=10, pady=5)
         self.threshold_entry = ttk.Entry(self.scrollable_frame)
         self.threshold_entry.insert(0, "0.5")
-        self.threshold_entry.grid(row=19, column=1, padx=10, pady=5)
+        self.threshold_entry.grid(row=23, column=1, padx=10, pady=5)
 
-        # Run evaluation button
-        ttk.Button(self.scrollable_frame, text="Run Final Evaluation", command=self.run_evaluation).grid(row=20, column=0, columnspan=2, pady=10)
+        # кнопка запуска процесса обучения и тестирования модели
+        ttk.Button(self.scrollable_frame, text="Run Final Evaluation", command=self.run_evaluation).grid(row=28, column=0, columnspan=2, pady=10)
 
-        # Results display
+        # блок вывода результатов
         results_frame = ttk.Frame(self.scrollable_frame)
-        results_frame.grid(row=21, column=0, columnspan=2, padx=10, pady=10)
+        results_frame.grid(row=25, column=0, columnspan=2, padx=10, pady=10)
         scrollbar = ttk.Scrollbar(results_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.results_text = tk.Text(results_frame, height=10, width=80, yscrollcommand=scrollbar.set)
         self.results_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.results_text.yview)
 
-        # Save results button
-        ttk.Button(self.scrollable_frame, text="Save Results to XLSX", command=self.save_results).grid(row=22, column=0, columnspan=2, pady=10)
+        # кнопка сохранения результатов
+        ttk.Button(self.scrollable_frame, text="Save Results to XLSX", command=self.save_results).grid(row=26, column=0, columnspan=2, pady=10)
 
     def browse_folder(self, target_var):
         folder = filedialog.askdirectory()
         if folder:
             target_var.set(folder)
 
-    def extract_features(self):
+    def extract_features(self): # функция запуска процесса извлечения признаков
         training_path = self.training_path.get()
         validation_path = self.validation_path.get()
         testing_path = self.testing_path.get()
@@ -217,13 +246,13 @@ class MLResearchApp:
             messagebox.showerror("Error", "Select at least one feature group")
             return
 
-        # Get selected statistics
+        # прием выбранных статистических агрегатов
         stats_list = [stat for stat, var in self.selected_stats.items() if var.get()]
         if not stats_list:
             messagebox.showerror("Error", "Select at least one statistic")
             return
 
-        # Get coefficient counts
+        # прием количества коэффициентов MFCC/LFCC
         try:
             n_mfcc = int(self.n_mfcc.get())
             n_lfcc = int(self.n_lfcc.get())
@@ -236,12 +265,12 @@ class MLResearchApp:
         self.reset_progress()
         self.set_status("Extracting features...")
         
-        # Disable button during extraction
+        # выключение кнопки на время извлечения признаков
         for child in self.scrollable_frame.winfo_children():
             if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
                 child.config(state='disabled')
         
-        # Run extraction in separate thread
+        # перевод процесса на параллельный поток во избежание зависания приложения
         def extraction_worker():
             try:
                 start_time = time.time()
@@ -257,7 +286,7 @@ class MLResearchApp:
                 )
                 self.extraction_time = time.time() - start_time
                 
-                # Update GUI in main thread
+                # обновление линии прогресса в основном потоке
                 self.root.after(0, self._extraction_complete, output_paths)
             except Exception as e:
                 self.root.after(0, self._extraction_error, str(e))
@@ -266,7 +295,7 @@ class MLResearchApp:
         thread.start()
     
     def _extraction_complete(self, output_paths):
-        # Re-enable button
+        # активация кнопки запуска извлечения признаков
         for child in self.scrollable_frame.winfo_children():
             if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
                 child.config(state='normal')
@@ -284,8 +313,7 @@ class MLResearchApp:
         self.set_progress(100, "Extraction complete")
         messagebox.showinfo("Success", f"Features extracted and saved to:\n- {self.extracted_csv_training}\n- {self.extracted_csv_validation}\n- {self.extracted_csv_testing}\n\nExtraction time: {self.extraction_time:.2f}s\nFeature set: {self.feature_set_name}")
     
-    def _extraction_error(self, error_msg):
-        # Re-enable button
+    def _extraction_error(self, error_msg): # на случай возникновения ошибки в ходе извлечения признаков
         for child in self.scrollable_frame.winfo_children():
             if isinstance(child, ttk.Button) and child.cget('text') == 'Extract Features and Save CSV':
                 child.config(state='normal')
@@ -318,44 +346,77 @@ class MLResearchApp:
             row += 1
 
     def load_data(self):
-        # First try to use extraction_result folder if available
-        if hasattr(self, 'extraction_result_dir') and self.extraction_result_dir and os.path.exists(self.extraction_result_dir):
-            extraction_csv_training = os.path.join(self.extraction_result_dir, 'training.csv')
-            extraction_csv_validation = os.path.join(self.extraction_result_dir, 'validation.csv')
-            extraction_csv_testing = os.path.join(self.extraction_result_dir, 'testing.csv')
+        # 1.  проверяем пользовательские CSV-файлы
+        custom_train = self.custom_train_csv.get()
+        custom_valid = self.custom_valid_csv.get()
+        custom_test = self.custom_test_csv.get()
+
+        if custom_train and custom_valid and custom_test:
+            if all(os.path.exists(p) for p in [custom_train, custom_valid, custom_test]):
+                self.set_status("Using custom user-provided feature CSVs")
+                train_path = custom_train
+                valid_path = custom_valid
+                test_path = custom_test
+            else:
+                messagebox.showerror("Error", "One or more custom CSV paths are invalid or do not exist.") # если путь указан неверно
+                return None, None, None, None, None, None
+        else:
+            # если результаты извлечения не указаны, будут задействованы последние извлеченные файлы результатов (во время текущей сессии)
+            # в случае перезапуска приложения нужно обязательно указать директории .csv-файлов
+            if hasattr(self, 'extraction_result_dir') and self.extraction_result_dir and os.path.exists(self.extraction_result_dir):
+                extraction_csv_training = os.path.join(self.extraction_result_dir, 'training.csv')
+                extraction_csv_validation = os.path.join(self.extraction_result_dir, 'validation.csv')
+                extraction_csv_testing = os.path.join(self.extraction_result_dir, 'testing.csv')
+                
+                if all(os.path.exists(p) for p in [extraction_csv_training, extraction_csv_validation, extraction_csv_testing]):
+                    self.extracted_csv_training = extraction_csv_training
+                    self.extracted_csv_validation = extraction_csv_validation
+                    self.extracted_csv_testing = extraction_csv_testing
+                    self.set_status(f"Using extracted features from {self.extraction_result_dir}")
             
-            if all(os.path.exists(p) for p in [extraction_csv_training, extraction_csv_validation, extraction_csv_testing]):
-                self.extracted_csv_training = extraction_csv_training
-                self.extracted_csv_validation = extraction_csv_validation
-                self.extracted_csv_testing = extraction_csv_testing
-                self.set_status(f"Using extracted features from {self.extraction_result_dir}")
-        
-        paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
-        missing = [p for p in paths if not p or not os.path.exists(p)]
-        if missing:
-            self.try_infer_csv_paths()
             paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
             missing = [p for p in paths if not p or not os.path.exists(p)]
             if missing:
-                messagebox.showerror("Error", "Extract features first to generate training.csv, validation.csv, and testing.csv")
-                return None, None, None, None, None, None
+                self.try_infer_csv_paths()
+                paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
+                missing = [p for p in paths if not p or not os.path.exists(p)]
+                if missing:
+                    messagebox.showerror("Error", "Provide custom CSVs OR extract features first to generate datasets.")
+                    return None, None, None, None, None, None
+            
+            train_path = self.extracted_csv_training
+            valid_path = self.extracted_csv_validation
+            test_path = self.extracted_csv_testing
 
-        # Load data from 3 CSV files
-        df_train = pd.read_csv(self.extracted_csv_training)
-        df_valid = pd.read_csv(self.extracted_csv_validation)
-        df_test = pd.read_csv(self.extracted_csv_testing)
-        
-        # Extract features and labels
-        X_train = df_train.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_train = df_train['label']
-        
-        X_valid = df_valid.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_valid = df_valid['label']
-        
-        X_test = df_test.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_test = df_test['label']
+        # загрузка данных из определенных путей
+        try:
+            df_train = pd.read_csv(train_path)
+            df_valid = pd.read_csv(valid_path)
+            df_test = pd.read_csv(test_path)
+            
+            # bзвлечение признаков и меток
+            X_train = df_train.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_train = df_train['label']
+            
+            X_valid = df_valid.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_valid = df_valid['label']
+            
+            X_test = df_test.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_test = df_test['label']
 
-        return X_train, X_valid, X_test, y_train, y_valid, y_test
+            return X_train, X_valid, X_test, y_train, y_valid, y_test
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load CSV files: {str(e)}")
+            return None, None, None, None, None, None
+    
+    def browse_file(self, target_var):
+        file_path = filedialog.askopenfilename(
+            title="Select CSV File",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if file_path:
+            target_var.set(file_path)
 
     def calculate_eer(self, y_true, y_score):
         fpr, tpr, thresholds = roc_curve(y_true, y_score, pos_label=1)
@@ -465,15 +526,11 @@ class MLResearchApp:
             else:
                 y_score = clf.predict(X_valid_opt)  # For KNN without proba
 
-            if model == 'KNN':
-                acc = accuracy_score(y_valid, y_score > 0.5)
-                trial.set_user_attr("accuracy", acc)
-                return -acc
-            else:
-                eer, best_threshold = self.calculate_eer(y_valid, y_score)
-                trial.set_user_attr("eer_threshold", float(best_threshold))
-                trial.set_user_attr("accuracy", accuracy_score(y_valid, y_score > 0.5))
-                return eer
+            # Use EER for all models (better and consistent)
+            eer, best_threshold = self.calculate_eer(y_valid, y_score)
+            trial.set_user_attr("eer_threshold", float(best_threshold))
+            trial.set_user_attr("accuracy", accuracy_score(y_valid, y_score > 0.5))
+            return eer
 
         try:
             trials = int(self.num_trials.get())
@@ -499,7 +556,7 @@ class MLResearchApp:
 
         messagebox.showinfo("Optimization Complete", f"Best params: {self.best_params}\n\nOptimization time: {self.optimization_time:.2f}s")
 
-        # Proceed to final evaluation on test set
+        # запуск обучения и оценки на тестовых данных
         self.run_evaluation()
 
     def run_validation_evaluation(self):
@@ -509,7 +566,7 @@ class MLResearchApp:
 
         model = self.selected_model.get()
 
-        # Use validation set for evaluation
+        # обучение с валидационным сетом
         if model == 'KNN':
             if self.scaler is None:
                 self.scaler = StandardScaler()
@@ -518,7 +575,7 @@ class MLResearchApp:
         else:
             X_eval = X_valid
 
-        # Train with best params on training set
+        # обучение на тренировочном сете с лучшими гиперпараметрами
         if self.best_params is None:
             messagebox.showerror("Error", "Run optimization first")
             return
@@ -539,7 +596,7 @@ class MLResearchApp:
         self.progress_bar.config(mode='determinate')
         self.set_status("Model trained for validation")
 
-        # Predict on validation
+        # предсказание на валидационных данных
         start_time = time.time()
         if hasattr(clf, 'predict_proba'):
             y_pred_proba = clf.predict_proba(X_eval)[:, 1]
@@ -549,13 +606,13 @@ class MLResearchApp:
             y_pred_proba = y_pred
         prediction_time = time.time() - start_time
 
-        # Show plot for threshold selection on validation
+        # вывод графика зависимости метрик от порога вероятности (в случае, если не указан тестовый набор)
         if hasattr(clf, 'predict_proba'):
             self.plot_threshold_metrics(y_valid, y_pred_proba)
         else:
             self.threshold = 0.5
 
-        # Display validation results with default threshold
+        # вывод результатов оценки на валидационном сете с порогом по умолчанию 0.5
         acc = accuracy_score(y_valid, y_pred)
         prec = precision_score(y_valid, y_pred)
         rec = recall_score(y_valid, y_pred)
@@ -579,7 +636,7 @@ class MLResearchApp:
 
         model = self.selected_model.get()
 
-        # Combine train and valid
+        # слияние валидационного и тренировочного наборов
         X_train_valid = pd.concat([X_train, X_valid], ignore_index=True)
         y_train_valid = pd.concat([y_train, y_valid], ignore_index=True)
 
@@ -594,7 +651,7 @@ class MLResearchApp:
             X_eval = X_train_valid
             X_test_eval = X_test
 
-        # Train with best params
+        # обучение с лушими гиперпараметрами
         if self.best_params is None:
             messagebox.showerror("Error", "Run optimization first")
             return
@@ -616,7 +673,7 @@ class MLResearchApp:
         self.progress_bar.config(mode='determinate')
         self.set_status("Model trained")
 
-        # Predict with default 0.5
+        # предсказание результатов с порогом вероятности 0.5
         start_time = time.time()
         if hasattr(self.clf, 'predict_proba'):
             y_pred_proba = self.clf.predict_proba(X_test_eval)[:, 1]
@@ -626,24 +683,24 @@ class MLResearchApp:
             y_pred_proba = y_pred
         prediction_time = time.time() - start_time
 
-        # Show plot for threshold selection
+        # вывод графика зависимости тестовых метрик от порога вероятности
         if hasattr(self.clf, 'predict_proba'):
             self.plot_threshold_metrics(y_test, y_pred_proba)
         else:
             self.threshold = 0.5
 
-        # Wait for user to choose threshold
+        # выбор порога вероятности
         try:
             self.threshold = float(self.threshold_entry.get())
         except ValueError:
             messagebox.showerror("Error", "Invalid threshold value")
             return
 
-        # Final prediction with chosen threshold
+        # рассчет метрик с учетом указанного порога верояности
         if hasattr(self.clf, 'predict_proba'):
             y_pred = (y_pred_proba > self.threshold).astype(int)
 
-        # Metrics
+        # метрики
         acc = accuracy_score(y_test, y_pred)
         prec = precision_score(y_test, y_pred)
         rec = recall_score(y_test, y_pred)
@@ -651,7 +708,7 @@ class MLResearchApp:
 
         cm = confusion_matrix(y_test, y_pred)
 
-        # Feature importances
+        # рассчет важности признаков
         if model in ['Random Forest', 'XGBoost']:
             if hasattr(self.clf, 'feature_importances_'):
                 importances = self.clf.feature_importances_
@@ -661,7 +718,7 @@ class MLResearchApp:
         else:
             importances = None
 
-        # Display results with all timing information
+        # вывод результатов
         results = f"=== Timing Information ===\n"
         # results += f"Feature Extraction Time: {self.extraction_time:.2f}s\n"
         results += f"Hyperparameter Optimization Time: {self.optimization_time:.2f}s\n"
@@ -682,7 +739,7 @@ class MLResearchApp:
         self.results_text.delete(1.0, tk.END)
         self.results_text.insert(tk.END, results)
 
-        # Store results for saving
+        # результаты для сохранения
         self.results_data = {
             'acc': acc,
             'prec': prec,
@@ -725,7 +782,7 @@ class MLResearchApp:
         ax.legend()
         ax.grid(True)
 
-        # Clear previous plot
+        # очистка графика
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
 
@@ -742,7 +799,7 @@ class MLResearchApp:
         ws = wb.active
         ws.title = "Results"
 
-        # Feature Set Info
+        # Набор данных
         ws['A1'] = 'Feature Set Name'
         ws['B1'] = data.get('feature_set_name', 'N/A')
         ws['A2'] = 'Model'
@@ -750,7 +807,7 @@ class MLResearchApp:
         ws['A3'] = 'Best Parameters'
         ws['B3'] = str(data.get('best_params', {}))
 
-        # Timing Information
+        # Времязатраты
         ws['A5'] = 'Timing Information'
         ws['B5'] = 'Time (s)'
         # ws['A6'] = 'Feature Extraction Time'
@@ -762,7 +819,7 @@ class MLResearchApp:
         ws['A9'] = 'Prediction Time'
         ws['B9'] = data.get('prediction_time', 0)
 
-        # Metrics
+        # Метрики
         ws['A11'] = 'Metric'
         ws['B11'] = 'Value'
         ws['A12'] = 'Accuracy'
@@ -782,7 +839,7 @@ class MLResearchApp:
                 for j in range(cm.shape[1]):
                     ws.cell(row=i+12, column=j+4, value=cm[i,j])
 
-        # Feature Importances
+        # важность признаков
         importances = data.get('importances')
         feature_names = data.get('feature_names')
         if importances is not None and feature_names is not None:
