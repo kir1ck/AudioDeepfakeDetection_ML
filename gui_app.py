@@ -62,6 +62,10 @@ class MLResearchApp:
         self.training_path = tk.StringVar()
         self.validation_path = tk.StringVar()
         self.testing_path = tk.StringVar()
+        # Variables for custom CSVs
+        self.custom_train_csv = tk.StringVar()
+        self.custom_valid_csv = tk.StringVar()
+        self.custom_test_csv = tk.StringVar()
         self.selected_features = {}
         self.selected_model = tk.StringVar(value='Random Forest')
         self.hyper_ranges = {}
@@ -145,46 +149,71 @@ class MLResearchApp:
         # Separator
         ttk.Separator(self.scrollable_frame, orient='horizontal').grid(row=10, column=0, columnspan=2, sticky='ew', pady=10)
 
-        # Model and hyperparams
-        ttk.Label(self.scrollable_frame, text="Model Training", font=('Arial', 12, 'bold')).grid(row=11, column=0, columnspan=2, pady=10)
+        ttk.Label(self.scrollable_frame, text="Load Custom Feature CSVs (Overrides Extraction)", font=('Arial', 12, 'bold')).grid(row=11, column=0, columnspan=2, pady=10)
 
-        ttk.Label(self.scrollable_frame, text="Select Model:").grid(row=12, column=0, sticky='w', padx=10, pady=5)
+        # Custom Train CSV
+        ttk.Label(self.scrollable_frame, text="Custom Training CSV:").grid(row=12, column=0, sticky='w', padx=10, pady=5)
+        ctrain_frame = ttk.Frame(self.scrollable_frame)
+        ctrain_frame.grid(row=12, column=1, padx=10, pady=5)
+        ttk.Entry(ctrain_frame, textvariable=self.custom_train_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(ctrain_frame, text="Browse", command=lambda: self.browse_file(self.custom_train_csv)).pack(side=tk.LEFT, padx=5)
+
+        # Custom Valid CSV
+        ttk.Label(self.scrollable_frame, text="Custom Validation CSV:").grid(row=13, column=0, sticky='w', padx=10, pady=5)
+        cvalid_frame = ttk.Frame(self.scrollable_frame)
+        cvalid_frame.grid(row=13, column=1, padx=10, pady=5)
+        ttk.Entry(cvalid_frame, textvariable=self.custom_valid_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(cvalid_frame, text="Browse", command=lambda: self.browse_file(self.custom_valid_csv)).pack(side=tk.LEFT, padx=5)
+
+        # Custom Test CSV
+        ttk.Label(self.scrollable_frame, text="Custom Testing CSV:").grid(row=14, column=0, sticky='w', padx=10, pady=5)
+        ctest_frame = ttk.Frame(self.scrollable_frame)
+        ctest_frame.grid(row=14, column=1, padx=10, pady=5)
+        ttk.Entry(ctest_frame, textvariable=self.custom_test_csv, width=40).pack(side=tk.LEFT)
+        ttk.Button(ctest_frame, text="Browse", command=lambda: self.browse_file(self.custom_test_csv)).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Separator(self.scrollable_frame, orient='horizontal').grid(row=15, column=0, columnspan=2, sticky='ew', pady=10)
+
+        # Model and hyperparams
+        ttk.Label(self.scrollable_frame, text="Model Training", font=('Arial', 12, 'bold')).grid(row=16, column=0, columnspan=2, pady=10)
+
+        ttk.Label(self.scrollable_frame, text="Select Model:").grid(row=17, column=0, sticky='w', padx=10, pady=5)
         model_combo = ttk.Combobox(self.scrollable_frame, textvariable=self.selected_model, values=MODELS)
-        model_combo.grid(row=12, column=1, padx=10, pady=5)
+        model_combo.grid(row=17, column=1, padx=10, pady=5)
         model_combo.bind("<<ComboboxSelected>>", self.update_hyper_entries)
 
         # Hyperparameter ranges frame
         self.hyper_frame = ttk.Frame(self.scrollable_frame)
-        self.hyper_frame.grid(row=13, column=0, columnspan=2, padx=10, pady=5)
+        self.hyper_frame.grid(row=18, column=0, columnspan=2, padx=10, pady=5)
         self.update_hyper_entries()
 
-        ttk.Label(self.scrollable_frame, text="Optuna Trials:").grid(row=14, column=0, sticky='w', padx=10, pady=5)
-        ttk.Entry(self.scrollable_frame, textvariable=self.num_trials, width=12).grid(row=14, column=1, padx=10, pady=5)
+        ttk.Label(self.scrollable_frame, text="Optuna Trials:").grid(row=19, column=0, sticky='w', padx=10, pady=5)
+        ttk.Entry(self.scrollable_frame, textvariable=self.num_trials, width=12).grid(row=19, column=1, padx=10, pady=5)
 
         # Buttons
-        ttk.Button(self.scrollable_frame, text="Run Hyperparameter Optimization", command=self.run_optimization).grid(row=15, column=0, columnspan=2, pady=10)
+        ttk.Button(self.scrollable_frame, text="Run Hyperparameter Optimization", command=self.run_optimization).grid(row=20, column=0, columnspan=2, pady=10)
 
         # Progress section
         self.progress_bar = ttk.Progressbar(self.scrollable_frame, maximum=100, variable=self.progress_var, length=600)
-        self.progress_bar.grid(row=16, column=0, columnspan=2, padx=10, pady=5)
-        ttk.Label(self.scrollable_frame, textvariable=self.status_text).grid(row=17, column=0, columnspan=2, sticky='w', padx=10, pady=2)
+        self.progress_bar.grid(row=21, column=0, columnspan=2, padx=10, pady=5)
+        ttk.Label(self.scrollable_frame, textvariable=self.status_text).grid(row=22, column=0, columnspan=2, sticky='w', padx=10, pady=2)
 
         # Plot frame for threshold selection
         self.plot_frame = ttk.Frame(self.scrollable_frame)
-        self.plot_frame.grid(row=18, column=0, columnspan=2, padx=10, pady=10)
+        self.plot_frame.grid(row=24, column=0, columnspan=2, padx=10, pady=10)
 
         # Threshold input
-        ttk.Label(self.scrollable_frame, text="Selected Threshold:").grid(row=19, column=0, sticky='w', padx=10, pady=5)
+        ttk.Label(self.scrollable_frame, text="Selected Threshold:").grid(row=23, column=0, sticky='w', padx=10, pady=5)
         self.threshold_entry = ttk.Entry(self.scrollable_frame)
         self.threshold_entry.insert(0, "0.5")
-        self.threshold_entry.grid(row=19, column=1, padx=10, pady=5)
+        self.threshold_entry.grid(row=23, column=1, padx=10, pady=5)
 
         # Run evaluation button
-        ttk.Button(self.scrollable_frame, text="Run Final Evaluation", command=self.run_evaluation).grid(row=20, column=0, columnspan=2, pady=10)
+        ttk.Button(self.scrollable_frame, text="Run Final Evaluation", command=self.run_evaluation).grid(row=28, column=0, columnspan=2, pady=10)
 
         # Results display
         results_frame = ttk.Frame(self.scrollable_frame)
-        results_frame.grid(row=21, column=0, columnspan=2, padx=10, pady=10)
+        results_frame.grid(row=25, column=0, columnspan=2, padx=10, pady=10)
         scrollbar = ttk.Scrollbar(results_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.results_text = tk.Text(results_frame, height=10, width=80, yscrollcommand=scrollbar.set)
@@ -192,7 +221,7 @@ class MLResearchApp:
         scrollbar.config(command=self.results_text.yview)
 
         # Save results button
-        ttk.Button(self.scrollable_frame, text="Save Results to XLSX", command=self.save_results).grid(row=22, column=0, columnspan=2, pady=10)
+        ttk.Button(self.scrollable_frame, text="Save Results to XLSX", command=self.save_results).grid(row=26, column=0, columnspan=2, pady=10)
 
     def browse_folder(self, target_var):
         folder = filedialog.askdirectory()
@@ -318,44 +347,76 @@ class MLResearchApp:
             row += 1
 
     def load_data(self):
-        # First try to use extraction_result folder if available
-        if hasattr(self, 'extraction_result_dir') and self.extraction_result_dir and os.path.exists(self.extraction_result_dir):
-            extraction_csv_training = os.path.join(self.extraction_result_dir, 'training.csv')
-            extraction_csv_validation = os.path.join(self.extraction_result_dir, 'validation.csv')
-            extraction_csv_testing = os.path.join(self.extraction_result_dir, 'testing.csv')
+        # 1. Сначала проверяем пользовательские CSV-файлы
+        custom_train = self.custom_train_csv.get()
+        custom_valid = self.custom_valid_csv.get()
+        custom_test = self.custom_test_csv.get()
+
+        if custom_train and custom_valid and custom_test:
+            if all(os.path.exists(p) for p in [custom_train, custom_valid, custom_test]):
+                self.set_status("Using custom user-provided feature CSVs")
+                train_path = custom_train
+                valid_path = custom_valid
+                test_path = custom_test
+            else:
+                messagebox.showerror("Error", "One or more custom CSV paths are invalid or do not exist.")
+                return None, None, None, None, None, None
+        else:
+            # 2. Если пользовательские файлы не указаны, используем старую логику экстрактора
+            if hasattr(self, 'extraction_result_dir') and self.extraction_result_dir and os.path.exists(self.extraction_result_dir):
+                extraction_csv_training = os.path.join(self.extraction_result_dir, 'training.csv')
+                extraction_csv_validation = os.path.join(self.extraction_result_dir, 'validation.csv')
+                extraction_csv_testing = os.path.join(self.extraction_result_dir, 'testing.csv')
+                
+                if all(os.path.exists(p) for p in [extraction_csv_training, extraction_csv_validation, extraction_csv_testing]):
+                    self.extracted_csv_training = extraction_csv_training
+                    self.extracted_csv_validation = extraction_csv_validation
+                    self.extracted_csv_testing = extraction_csv_testing
+                    self.set_status(f"Using extracted features from {self.extraction_result_dir}")
             
-            if all(os.path.exists(p) for p in [extraction_csv_training, extraction_csv_validation, extraction_csv_testing]):
-                self.extracted_csv_training = extraction_csv_training
-                self.extracted_csv_validation = extraction_csv_validation
-                self.extracted_csv_testing = extraction_csv_testing
-                self.set_status(f"Using extracted features from {self.extraction_result_dir}")
-        
-        paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
-        missing = [p for p in paths if not p or not os.path.exists(p)]
-        if missing:
-            self.try_infer_csv_paths()
             paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
             missing = [p for p in paths if not p or not os.path.exists(p)]
             if missing:
-                messagebox.showerror("Error", "Extract features first to generate training.csv, validation.csv, and testing.csv")
-                return None, None, None, None, None, None
+                self.try_infer_csv_paths()
+                paths = [self.extracted_csv_training, self.extracted_csv_validation, self.extracted_csv_testing]
+                missing = [p for p in paths if not p or not os.path.exists(p)]
+                if missing:
+                    messagebox.showerror("Error", "Provide custom CSVs OR extract features first to generate datasets.")
+                    return None, None, None, None, None, None
+            
+            train_path = self.extracted_csv_training
+            valid_path = self.extracted_csv_validation
+            test_path = self.extracted_csv_testing
 
-        # Load data from 3 CSV files
-        df_train = pd.read_csv(self.extracted_csv_training)
-        df_valid = pd.read_csv(self.extracted_csv_validation)
-        df_test = pd.read_csv(self.extracted_csv_testing)
-        
-        # Extract features and labels
-        X_train = df_train.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_train = df_train['label']
-        
-        X_valid = df_valid.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_valid = df_valid['label']
-        
-        X_test = df_test.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
-        y_test = df_test['label']
+        # Загрузка данных из определенных путей
+        try:
+            df_train = pd.read_csv(train_path)
+            df_valid = pd.read_csv(valid_path)
+            df_test = pd.read_csv(test_path)
+            
+            # Извлечение признаков и меток
+            X_train = df_train.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_train = df_train['label']
+            
+            X_valid = df_valid.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_valid = df_valid['label']
+            
+            X_test = df_test.drop(['filename', 'label', 'duration'], axis=1, errors='ignore')
+            y_test = df_test['label']
 
-        return X_train, X_valid, X_test, y_train, y_valid, y_test
+            return X_train, X_valid, X_test, y_train, y_valid, y_test
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load CSV files: {str(e)}")
+            return None, None, None, None, None, None
+    
+    def browse_file(self, target_var):
+        file_path = filedialog.askopenfilename(
+            title="Select CSV File",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if file_path:
+            target_var.set(file_path)
 
     def calculate_eer(self, y_true, y_score):
         fpr, tpr, thresholds = roc_curve(y_true, y_score, pos_label=1)
@@ -465,15 +526,11 @@ class MLResearchApp:
             else:
                 y_score = clf.predict(X_valid_opt)  # For KNN without proba
 
-            if model == 'KNN':
-                acc = accuracy_score(y_valid, y_score > 0.5)
-                trial.set_user_attr("accuracy", acc)
-                return -acc
-            else:
-                eer, best_threshold = self.calculate_eer(y_valid, y_score)
-                trial.set_user_attr("eer_threshold", float(best_threshold))
-                trial.set_user_attr("accuracy", accuracy_score(y_valid, y_score > 0.5))
-                return eer
+            # Use EER for all models (better and consistent)
+            eer, best_threshold = self.calculate_eer(y_valid, y_score)
+            trial.set_user_attr("eer_threshold", float(best_threshold))
+            trial.set_user_attr("accuracy", accuracy_score(y_valid, y_score > 0.5))
+            return eer
 
         try:
             trials = int(self.num_trials.get())
